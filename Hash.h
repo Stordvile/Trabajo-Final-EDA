@@ -13,6 +13,7 @@
 
 using namespace std;
 
+//estructura Lugar para la direccion de vivienda de una persona
 struct Lugar{
 	char Departamento[13];
 	char Provincia[11] ;
@@ -20,7 +21,7 @@ struct Lugar{
 	char Distrito[20];
 	char Ubicacion[15];
 };
-//prueba vector o lista
+//estructura Persona para las caracteristicas de una persona
 struct Persona{
 	char DNI[9];
 	char Nombres[20];
@@ -32,11 +33,16 @@ struct Persona{
 	char Correo[32];
 	char EstadoCivil[11];
 };
-
+//definimos el tamano contante para las tablas
 const int TAM_TABLA = 12;
 
 class TablaHash{
 private:
+	/*
+	van a haber 3 listas, Creacion para los datos de los archivos, insercion para los datos insertados durante el uso del programa y
+	eliminacion para las eliminaciones registradas, se los guarda en tablas distintas para luego poder actualizar los datos y que se refleje
+	en los archivos
+	*/
 	list<pair<char[9], Persona>> Tabla_Creacion[TAM_TABLA];
 	list<pair<char[9], Persona>> Tabla_Insercion[TAM_TABLA];
 	list<pair<char[9], Persona>> Tabla_Eliminacion[TAM_TABLA];
@@ -46,6 +52,7 @@ private:
 	
 
 public:
+	//funcion para convertir numeros en char, usada en la creacion de datos
 	void convertirNumeroAChar(int numero, char* destino, size_t tam) {
 		for (int i = tam - 2; i >= 0; --i) {
 			destino[i] = '0' + (numero % 10);
@@ -53,19 +60,19 @@ public:
 		}
 		destino[tam - 1] = '\0';
 	}
-	
+	//funcion para vaciar la tabla creacion, se usa al momento de buscar y en la creacion de datos
 	void vaciarHash() {
 		for (auto &lista : Tabla_Creacion) { 
 			lista.clear();
 		}
 	}
-	
+	//funcion para calcular el Indice, se usa en varios momentos del programa
 	int calcularIndiceHash(const char dni[9]) {
 		int numero = atoi(dni);
 		const int Bloque_DNI = (99999999 - 10000000 + 1) / 12;
 		return (numero - 10000000) / Bloque_DNI;
 	}
-	
+	//funciones para insertar en una tabla, las 3 InsertarCreacion, InsertarEliminacion e InsertarInsercion son iguales cambiando la tabla
 	void InsertarCreacion(const Persona &p) {
 		int indice = calcularIndiceHash(p.DNI);
 		pair<char[9], Persona> elemento;
@@ -89,11 +96,12 @@ public:
 		elemento.second = p;
 		Tabla_Eliminacion[indice].push_back(elemento);
 	}
-	
+	//funcion buscar, devuelve un puntero a la persona que se encuentre, en caso de no encontrarla devuelve nullptr
 	Persona* buscar(const char dni[9]) {
 		int indice = calcularIndiceHash(dni);
 		
 		for (auto &elemento : Tabla_Creacion[indice]) {
+			//revisa que el elemento este en Tabla_Creacion pero no en Tabla_Eliminacion
 			bool estaEliminado = false;
 			for (auto &elemento_eliminado : Tabla_Eliminacion[indice]) {
 				if (strcmp(elemento_eliminado.first, dni) == 0) {
@@ -106,7 +114,7 @@ public:
 			if (strcmp(elemento.first, dni) == 0)
 				return &elemento.second;
 		}
-
+		//luego revisa que este en Tabla_Insercion
 		for (auto &elemento : Tabla_Insercion[indice]) {
 			if (strcmp(elemento.first, dni) == 0)
 				return &elemento.second;
@@ -114,7 +122,7 @@ public:
 		
 		return nullptr;
 	}
-	
+	//funcion para agregar persona, pide todos los datos y luego lo guarda en Inserciones.bin y en Tabla_Insercion
 	void agregarPersona() {
 		Persona p;
 		cout << "Ingrese los datos de la persona" << endl;
@@ -185,7 +193,8 @@ public:
 		fclose(archivo);
 		InsertarInsercion(p);
 	}
-	
+	//funcion para eliminar persona, pide el DNI y si la persona esta en Tabla_Creacion y no esta eliminada ya entonces
+	//se guarda en Eliminaciones.bin y en Tabla_Eliminacion
 	void eliminarPersona(){
 		cout << "Ingrese los datos de la persona" << endl;
 		cout << "-------------------------------" << endl;
@@ -221,7 +230,7 @@ public:
 		fclose(archivo);
 		vaciarHash();
 	}
-	
+	//Funciones para guardar los datos clave
 	void guardarEnCacheInicio(const Persona &p) {
 		namespace fs = std::filesystem;
 		fs::path carpeta = "./Archivos";
@@ -266,7 +275,7 @@ public:
 			fclose(archivo);
 		}
 	}
-	
+	//Funcion para guardar una persona en uno de los archivos Datos
 	void guardarPersona(int idHilo, const Persona &p){
 		namespace fs = filesystem;
 		fs::path carpeta = "./Archivos";
@@ -279,7 +288,7 @@ public:
 			fclose(archivo);
 		}
 	}
-	
+	//funcion para ver todas las inserciones
 	void MostrarInserciones(){
 		string ruta = "./Archivos/Inserciones.bin";
 		
@@ -295,7 +304,7 @@ public:
 		int tamPersona = sizeof(Persona);
 		int tamRegistros = tamArchivo/tamPersona;
 		bool errorEnHilo = false;
-		
+		//paralelizamos la busqueda para leer el archivo Inserciones lo mas rapido posible
 		#pragma omp parallel
 		{
 			int tid = omp_get_thread_num();
@@ -305,7 +314,7 @@ public:
 			
 			FILE *pf = fopen(ruta.c_str(), "rb");
 			if(!pf){
-				#pragma omp atomic write
+#pragma omp atomic write
 				errorEnHilo = true;
 			}
 			
@@ -322,13 +331,13 @@ public:
 			}
 			fclose(pf);
 		};
-		
+		//en caso haya un hilo que no pudo acceder se notifica
 		if(errorEnHilo){
 			cout << "Un hilo no pudo abrir el archivo." << endl;
 			return;
 		}
 	}
-		
+	//Misma logica que las Inserciones solo que para mostrar las Eliminaciones registradas
 	void MostrarEliminaciones(){
 		string ruta = "./Archivos/Eliminaciones.bin";
 		
@@ -377,7 +386,8 @@ public:
 			return;
 		}
 	}
-	
+	//Funcion para mostrar los valores clave, ya que siempre seran 10 valores en cada archivo no es necesario paralelizarlo
+	//no se ganaria casi nada de tiempo
 	void mostrarValoresClave() {
 		const vector<string> archivos = {
 			"./Archivos/Cache_Inicio.bin",
@@ -410,7 +420,7 @@ public:
 			fclose(archivo);
 		}
 	}
-	
+	//Funcion para mostrar los datos de una persona
 	void MostrarPersona(Persona &p){
 		cout << "------------------------------"<<endl;
 		cout << "DNI: " << p.DNI << endl;
@@ -428,7 +438,7 @@ public:
 		cout << "Estado Civil: " << p.EstadoCivil << endl;
 		cout << "-----------------------------" << endl;
 	}
-	
+	//Funcion para cargar los datos, recibe como parametro el Indice del archivo que se quiere cargar
 	void cargarDatos(int indice){
 		const vector<string> archivos = {
 			"./Archivos/Datos1.bin",
@@ -458,7 +468,7 @@ public:
 		long tamPersona = sizeof(Persona);
 		long tamRegistros = tamArchivo / tamPersona;
 		
-		
+		//paralelizamos la lectura, para esto lo guardamos en un vector vectores de personas
 		vector<vector<Persona>> buffers(omp_get_max_threads());
 		
 		#pragma omp parallel
@@ -478,7 +488,8 @@ public:
 			}
 			fclose(pf);
 		};
-		
+		//no se puede paralelizar la insercion en la Lista Hash sin embargo lo que mas demora es la lectura del archivo
+		//por lo que paralelizar en este caso si representa un gran beneficio
 		for(const auto& buffer : buffers){
 			for(const auto& elem : buffer){
 				InsertarCreacion(elem);
@@ -486,8 +497,10 @@ public:
 		}
 		cout<<"Se han cargado "<<tamRegistros<<" de "<<archivos[indice]<<endl;
 	}
-		
+	//funcion para Actualizar los datos guardados en archivos
 	void ActualizacionDatos(){
+		//el motivo de porque no se llama a cargarDatos para la parte en que debemos cargarlos es que aqui ya vamos a paralelizar
+		//y cada hilo trabajara un archivo entonces no podemos llamar a otra funcion que tambien realiza paralelizacion
 		namespace fs = std::filesystem;
 		const vector<string> archivos = {
 			"./Archivos/Datos1.bin",
@@ -503,17 +516,24 @@ public:
 			"./Archivos/Datos11.bin",
 			"./Archivos/Datos12.bin",
 		};
+		//vaciamos el Hash por si acaso antes de cualquier cosa
+		vaciarHash();
 		#pragma omp parallel
 		{
+			//la paralelizacion aqui funcionara de tal forma que cada hilo se encargara de un indice de la Tabla_Creacion, Tabla_Eliminacion y Tabla_Insercion
 			int tid = omp_get_thread_num();
 			FILE* archivo = fopen(archivos[tid].c_str(), "rb");
 			Persona p;
-			Tabla_Creacion[tid].clear();
 			while(!Tabla_Eliminacion[tid].empty()){
+				//los hilos verifican que hayan indices en sus respectivos hilos, en caso no los haya simplemente
+				//no entran aqui ya no no deben de hacer ninguna revision
 				while(fread(&p, sizeof(Persona), 1, archivo)==1){
 					bool estaEliminado = false;
 					for (auto &elemento_eliminado : Tabla_Eliminacion[tid]) {
 						if (strcmp(elemento_eliminado.first, p.DNI) == 0) {
+							//en caso se encuentre un elemento de la Tabla_Eliminacion se lo retira, esto porque como ya se encontro para nosotros
+							//ya no es relevante y es una iteracion que seria inutil en futuros bucles
+							//lo sacamos y este proceso se repite hasta que Tabla_Eliminacion[tid] esye vacio
 							Tabla_Eliminacion[tid].remove_if([&p](const pair<char[9], Persona>& elem) {
 								return strcmp(elem.first, p.DNI) == 0;
 							});
@@ -521,18 +541,26 @@ public:
 							break;
 						}
 					}
+					//si un elemento no esta eliminado se lo manda a la Tabla_Creacion, aqui esta parte si se puede paralelizar
+					//porque cada hilo maneja Indices de la tabla distintos de tal forma que no habra cruces en la memoria
 					if (!estaEliminado) {
 						InsertarCreacion(p);
 					}
 				}
+				//aqui se da la orden de borrar los archivos, solo se da si hay eliminaciones porque para guardar las inserciones en los archivos no
+				//es necesario borrarlos
 				fclose(archivo);
 				fs::remove(archivos[tid].c_str());
 			}
+			//ahora vemos que la tabla Tabla_Insercion no este vacia,
+			//aqui se hace If en lugar del while anterior porque aca no vamos a usar bucles anidados que tengan que buscar algo en cada ciclo
 			if(!Tabla_Insercion[tid].empty()){
 				for(auto &elemento_insertado : Tabla_Insercion[tid]){
 					InsertarCreacion(elemento_insertado.second);
 				}
 			}
+			//una vez que nuestra Tabla_Creacion tenga sus elementos actualizados empezamos a guardarla en nuevos archivos
+			//el porque esto se puede paralelizar es que cada hilo trabaja con un archivo distinto
 			for(auto &elemento : Tabla_Creacion[tid]){
 				guardarPersona(tid, elemento.second);
 			}

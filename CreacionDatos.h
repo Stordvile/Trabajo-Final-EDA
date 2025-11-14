@@ -179,16 +179,17 @@ public:
 	{}
 	//funcion principal de la creacion de rangos
 	void CrearDatos(TablaHash &listado){
+		int hilos = omp_get_num_threads();
 		const int Bloque_DNI = (99999999 - 10000000 + 1) / 12;
 		//vector con el numero de rangos que habra
-		vector<pair<int,int>> rangos(12);
+		vector<pair<int,int>> rangos(hilos);
 		//iniciamos la paralelizacion del programa para aumentar la velocidad
 		#pragma omp parallel
 		{
 			int tid = omp_get_thread_num();
 			mt19937 rng((unsigned)chrono::steady_clock::now().time_since_epoch().count() + tid);
 			int inicio = 10000000 + tid * Bloque_DNI;
-			int fin = (tid == 12 - 1) ? 99999999 : inicio + Bloque_DNI - 1;
+			int fin = (tid == hilos - 1) ? 99999999 : inicio + Bloque_DNI - 1;
 			rangos[tid] = {inicio, fin};
 			bitset<Bloque_DNI> usadosDNI;
 			#pragma omp for schedule(dynamic)
@@ -213,6 +214,7 @@ public:
 				generarDireccion(rng, p.Direccion);
 				generarEstadoCivil(rng, p.EstadoCivil, sizeof(p.EstadoCivil));
 				generarCorreo(rng, p.Nombres, p.Apellidos, p.Correo, sizeof(p.Correo));
+				//insertar en el Hash Perfecto las personas y guardarlas en archivos
 				listado.InsertarCreacion(p);
 				listado.guardarPersona(tid,p);
 				//funcion para guardados clave dentro del sistema, los guardados claves son los 10 primeros, los del medio y los ultimos
@@ -225,6 +227,8 @@ public:
 				}
 			}
 		}
+		//se vacia el hash al final de todo
+		listado.vaciarHash();
 	}
 };
 #endif
